@@ -7,6 +7,8 @@ import os
 from collections import Counter
 import random
 from sklearn.preprocessing import StandardScaler, LabelEncoder
+import torch
+import numpy as np
 class CNNTimeSeriesClassifier(nn.Module):
     def __init__(self, input_shape, n_classes, dropout=0.3):
         """
@@ -315,3 +317,24 @@ class ImprovedCustomDataset(Dataset):
             'class_names': self.label_encoder.classes_,
             'input_shape': (self.chunk_size, self.sequences.shape[2])
         }
+        
+def convert_data(features):
+    chunk_size = 50
+    # features = torch.rand(30,28)
+    # sequences = []
+    print(chunk_size,features.shape)
+    
+    if len(features) >= 50:
+        # If longer than chunk_size, use uniform sampling
+        indices = np.linspace(0, len(features)-1, chunk_size, dtype=int)
+        sequence = features[indices]
+    else:
+        # If shorter, pad with zeros at the end
+        sequence = np.zeros((chunk_size, features.shape[1]))
+        sequence[:len(features)] = features
+
+    
+    if torch.cuda.is_available():
+        return torch.tensor(sequence).to("cuda")
+    else:
+        return torch.tensor(sequence)
