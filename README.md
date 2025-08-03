@@ -54,24 +54,16 @@ in real word situation you need to replace this chunk of code
   y_true = []
   y_pred = []
   for test_data,lab in zip(test,Label):
-      # print(lab)
       if lab!=pv_label and pv_label!="":
-          # print(f"class from {pv_label} --> {lab}")
-          if len(data) < 30:
+          if len(data) < 30: ### you can change the 30 to other number to indicate the least data sample to predict
               data = []
               continue
           data = torch.tensor(data)
-          print("convert_data")
           tas = convert_data(data)
-          # print(tas)
           answer = torch.argmax(model(tas.unsqueeze(0)))
           finalans = rollback[str(answer.item())]
           las = labels[pv_label]
-          # print(las)
-          print(f"the current class is {finalans} of class {pv_label}")
           data = []
-          y_true.append(las)
-          y_pred.append(answer.item())
       else:
           data.append(test_data)
           
@@ -82,3 +74,4 @@ in real word situation you need to replace this chunk of code
 
 ## remind
 I need to remind that you need to create env in the same folder as run_test.py so you can run it smoothly if not you need to change a path relatively to the path env is on.
+
