@@ -5,7 +5,6 @@
 - **HAR model***: normal model that use to predict movement
 - **rollback file***: Use to turn whats model predicts back to word
 
-## setup
 
 ## Requirements
 
