@@ -39,9 +39,8 @@
     Now we need to change the model and other path in config.yaml file
     ```bash
     model: ./asset/model/model_96.pt
-    classifier: ./asset/model/areYouDoSomething_model.pt
     rollback: ./asset/other/rollback.json
-    test_df : ./asset/other/20250715_111750_DATA_INDICATOR_sensor.csv
+    test_df : ./asset/other/20250715_111750_DATA_INDICATOR_sensor.csv ### in realword data you dont need this.
     ```
 ## What you need to know
 in real word situation you need to replace this chunk of code
@@ -74,5 +73,6 @@ in real word situation you need to replace this chunk of code
 
 ## remind
 I need to remind that you need to create env in the same folder as run_test.py so you can run it smoothly if not you need to change a path relatively to the path env is on.
+
 
 
