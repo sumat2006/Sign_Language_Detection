@@ -41,7 +41,6 @@
     with open(r"xxxxxxxxxxxxxxxxx.json",'r',encoding="utf-8") as f:
         rollback = json.load(f)
     model_path = r"xxxxxxxxxxxxxxxxx.pt"
-    classifier = r"xxxxxxxxxxxxxxxxx.pt"
     test_df = pd.read_csv(rf"xxxxxxxxxxxxxxxxxxxxxx.csv")
     ```
 ## What you need to know
