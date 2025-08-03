@@ -4,3 +4,12 @@ collect_data/collected_data
 collect_data/out_data
 collect_data/20250624_091650_กองภพ24062025_sensor.csv
 collect_data/test_zone.ipynb
+model/signlang_template.ipynb
+meta_data
+.venv
+model/*
+code
+codeGyroHardWare
+collect_data
+!model/src
+src-20250803T105749Z-1-001.zip
