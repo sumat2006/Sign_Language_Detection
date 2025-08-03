@@ -10,7 +10,7 @@ import os
 import yaml
 from pathlib import Path
 
-with open("F:\Hybridmodel-project\Sign_Language_Detection\src\config.yaml", 'r') as f:
+with open("config.yaml", 'r') as f:
     config = yaml.load(f, Loader=yaml.FullLoader)
 
 with open(config["rollback"],'r',encoding="utf-8") as f:

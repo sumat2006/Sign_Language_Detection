@@ -9,6 +9,8 @@ import random
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import torch
 import numpy as np
+import tqdm
+
 class CNNTimeSeriesClassifier(nn.Module):
     def __init__(self, input_shape, n_classes, dropout=0.3):
         """
