@@ -69,9 +69,10 @@ in real word situation you need to replace this chunk of code
           
       pv_label = lab
   ```
-  with a streaming method that give a data to convert data function in [[seq_lenght,28]] in a tensor.double datatype
+  with a streaming method that give a data to convert data function in [seq_lenght,28] in a tensor.double datatype
   then model will predict the probability of all class and we will chose the heighest prob using torch.argmax and then convert it back using rollback variable
 
 ## remind
 I need to remind that you need to create env in the same folder as run_test.py so you can run it smoothly if not you need to change a path relatively to the path env is on.
+
 
