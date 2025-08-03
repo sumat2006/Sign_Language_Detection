@@ -36,17 +36,16 @@
     ```
 
 4.  **Change file name**
-    Now we need to change the model and other path
+    Now we need to change the model and other path in config.yaml file
     ```bash
-    with open(r"xxxxxxxxxxxxxxxxx.json",'r',encoding="utf-8") as f:
-        rollback = json.load(f)
-    model_path = r"xxxxxxxxxxxxxxxxx.pt"
-    test_df = pd.read_csv(rf"xxxxxxxxxxxxxxxxxxxxxx.csv")
+    model: ./asset/model/model_96.pt
+    classifier: ./asset/model/areYouDoSomething_model.pt
+    rollback: ./asset/other/rollback.json
+    test_df : ./asset/other/20250715_111750_DATA_INDICATOR_sensor.csv
     ```
 ## What you need to know
 in real word situation you need to replace this chunk of code
   ```bash
-  test_df = pd.read_csv(rf"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.csv")
   test_df = test_df[~(test_df.Label.isin(["error_redo","break_time"]))].reset_index(drop=True)
   test = test_df.drop(columns=["Label","timestamp_ms"]).values
   Label = test_df["Label"].values
@@ -80,3 +79,6 @@ in real word situation you need to replace this chunk of code
   ```
   with a streaming method that give a data to convert data function in [[seq_lenght,28]] in a tensor.double datatype
   then model will predict the probability of all class and we will chose the heighest prob using torch.argmax and then convert it back using rollback variable
+
+## remind
+I need to remind that you need to create env in the same folder as run_test.py so you can run it smoothly if not you need to change a path relatively to the path env is on.
