@@ -46,7 +46,7 @@
 ## What you need to know
 in real word situation you need to replace this chunk of code
   ```bash
-  test_df = pd.read_csv(rf"F:\Hybridmodel-project\Sign_Language_Detection\collect_data\20250715_111750_DATA_INDICATOR_sensor.csv")
+  test_df = pd.read_csv(rf"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.csv")
   test_df = test_df[~(test_df.Label.isin(["error_redo","break_time"]))].reset_index(drop=True)
   test = test_df.drop(columns=["Label","timestamp_ms"]).values
   Label = test_df["Label"].values
