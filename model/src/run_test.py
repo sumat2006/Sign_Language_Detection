@@ -1,5 +1,5 @@
+from pyexpat import model
 import torch 
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -7,9 +7,28 @@ from tqdm.notebook import tqdm
 import json
 from model import CNNTimeSeriesClassifier,ImprovedCustomDataset
 
+def laodAndPreData(csv_path):
+    df = pd.read_csv(rf"{csv_path}")
+    x = df[~(df.Label.isin(["error_redo","break_time"]))].reset_index(drop=True)
+    x = x.drop(columns=["Label","timestamp_ms"]).values
+    y = x["Label"].values
 
+    return x,y
 
+def loadModelAndLabel(model_path,labels_path,rollback_path):
+    with open(rf"{rollback_path}",'r',encoding="utf-8") as f:
+        rollback = json.load(f)
+    with open(rf"{labels_path}",'r',encoding="utf-8") as f:
+        labels = json.load(f)
 
+    if torch.cuda.is_available():
+        model = torch.load(rf"{model_path}",weights_only=False)
+        model.to("cuda")
+    else:
+        model = torch.load(rf"{model_path}",weights_only=False,map_location=torch.device('cpu'))
+
+    return model,labels,rollback
+    
 def convert_data(features):
     chunk_size = 50
     # features = torch.rand(30,28)
@@ -31,31 +50,19 @@ def convert_data(features):
     else:
         return torch.tensor(sequence)
     
-with open(r"F:\Hybridmodel-project\Sign_Language_Detection\rollback.json",'r',encoding="utf-8") as f:
-    rollback = json.load(f)
-with open(r"F:\Hybridmodel-project\Sign_Language_Detection\labels.json",'r',encoding="utf-8") as f:
-    labels = json.load(f)
-model_path = r"F:\Hybridmodel-project\Sign_Language_Detection\model\model_96.pt"
-classifier = r"F:\Hybridmodel-project\Sign_Language_Detection\model\areYouDoSomething_model.pt"
-if torch.cuda.is_available():
-    model = torch.load(f"{model_path}",weights_only=False)
-    classifier = torch.load(f"{classifier}",weights_only=False)
-    model.to("cuda")
-else:
-    model = torch.load(f"{model_path}",weights_only=False,map_location=torch.device('cpu'))
-    classifier = torch.load(f"{classifier}",weights_only=False,map_location=torch.device('cpu'))
-    
+
+model,labels,rollback = loadModelAndLabel(model_path = None, labels_path = None, rollback_path = None)
+
 model.double()
 model.eval()
-test_df = pd.read_csv(rf"F:\Hybridmodel-project\Sign_Language_Detection\collect_data\20250715_111750_DATA_INDICATOR_sensor.csv")
-test_df = test_df[~(test_df.Label.isin(["error_redo","break_time"]))].reset_index(drop=True)
-test = test_df.drop(columns=["Label","timestamp_ms"]).values
-Label = test_df["Label"].values
+
+
+x,y = laodAndPreData(csv_path=None)
 data = []
 pv_label = ""
 y_true = []
 y_pred = []
-for test_data,lab in zip(test,Label):
+for test_data,lab in zip(x,y):
     # print(lab)
     if lab!=pv_label and pv_label!="":
         # print(f"class from {pv_label} --> {lab}")
