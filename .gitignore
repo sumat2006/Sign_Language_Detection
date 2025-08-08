@@ -5,11 +5,11 @@ meta_data
 .venv
 model/*
 code
-# codeGyroHardWare
-collect_data/*
 !collect_data/read_serial_data_V2.py
 !collect_data/read_serial_data.py
 !model/src
 Sign_Language_Detection/src-20250803T105749Z-1-001.zip
 codeGyroHardWare/gyroMain/lib/*
 codeGyroHardWare/gyroSlave/lib/*
+collect_data/*
+!collect_data/app

@@ -274,5 +274,5 @@ void loop() {
       Serial.print(".");
       delay(500);
     }
-  delay(50); 
+  delay(100); 
 }

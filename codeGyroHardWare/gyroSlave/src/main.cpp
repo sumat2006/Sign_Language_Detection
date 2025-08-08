@@ -206,5 +206,5 @@ void loop() {
   
   esp_now_send(receiver_mac, (uint8_t *) &localData, sizeof(localData));
   
-  delay(50); 
+  delay(100); 
 }
