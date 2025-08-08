@@ -2,108 +2,55 @@
 #include <esp_wifi.h>
 #include <WiFi.h>
 #include <Wire.h>
-// Receiver device (Master) MAC: FC:01:2C:D9:3B:5C
-// This device (Slave/Sender) MAC: B8:F8:62:E7:09:E0
-// uint8_t receiver_mac[] = {0xFC, 0x01, 0x2C, 0xD9, 0x3B, 0x5C};
+#include <QMI8658.h>
+#include <Arduino.h>
+
+#define WIFI_CHANNEL 1
+#define ONE_G (9.807f)
+
+// MAC address of the Main/Receiver board
 uint8_t receiver_mac[] = {0xB8, 0xF8, 0x62, 0xE7, 0x09, 0xE0};
+
 // --- I2C Addresses ---
 const uint8_t MUX_ADDRESS = 0x70;
 const uint8_t SENSOR_ADDRESS = 0x6B;
+
 // --- QMI8658C Register Addresses ---
+QMI8658          imu; // For 6th sensor
 const uint8_t QMI8658C_WHO_AM_I = 0x00;
 const uint8_t QMI8658C_CTRL1 = 0x02;
 const uint8_t QMI8658C_CTRL2 = 0x03;
 const uint8_t QMI8658C_CTRL3 = 0x04;
 const uint8_t QMI8658C_CTRL7 = 0x08;
 const uint8_t QMI8658C_OUTPUT_REG_START = 0x35;
+
 const int NUM_SENSORS = 5;
-#define WIFI_CHANNEL 1
-float _gyro_lsb_div,_accel_lsb_div;
-struct  metaData
-{
-  // float ax, ay, az;
-  // float gx, gy, gz;
-  float ax1, ay1, az1;
-  float ax2, ay2, az2;
-  float ax3, ay3, az3;
-  float ax4, ay4, az4;
-  float ax5, ay5, az5;
 
-  float gx1, gy1, gz1;
-  float gx2, gy2, gz2;
-  float gx3, gy3, gz3;
-  float gx4, gy4, gz4;
-  float gx5, gy5, gz5;
-  bool isValid = false; // ใช้ตรวจสอบว่าอ่านค่าได้สำเร็จหรือไ
+// Simple low-pass filter state
+static const float alpha = 0.5f;
+float filtered_ax = 0.0f, filtered_ay = 0.0f, filtered_az = 0.0f;
+
+// This struct holds a complete sensor dataset for one board
+struct SensorData {
+  float ax1, ay1, az1, gx1, gy1, gz1;
+  float ax2, ay2, az2, gx2, gy2, gz2;
+  float ax3, ay3, az3, gx3, gy3, gz3;
+  float ax4, ay4, az4, gx4, gy4, gz4;
+  float ax5, ay5, az5, gx5, gy5, gz5;
+  float ax6, ay6, az6, gx6, gy6, gz6;
+  float angle_x, angle_y, angle_z;
+  bool isValid = false;
+  volatile bool slav_online = false;
 };
-metaData myData;
-esp_now_peer_info_t peerInfo;
-// --- ฟังก์ชันสำหรับเลือกช่อง I2C บน MUX (เหมือนเดิม) ---
-void selectMuxChannel(uint8_t bus) {
-  if (bus > 7) return;
-  Wire.beginTransmission(MUX_ADDRESS);
-  Wire.write(1 << bus);
-  Wire.endTransmission();
-}
-// --- ฟังก์ชันสำหรับเขียนค่าลง Register (เหมือนเดิม) ---
-void writeRegister(uint8_t reg, uint8_t data) {
-  Wire.beginTransmission(SENSOR_ADDRESS);
-  Wire.write(reg);
-  Wire.write(data);
-  Wire.endTransmission();
-}
-// --- ฟังก์ชันเริ่มต้นการทำงานของ QMI8658C (เหมือนเดิม) ---
-bool initQMI8658C() {
-  Wire.beginTransmission(SENSOR_ADDRESS);
-  Wire.write(QMI8658C_WHO_AM_I);
-  Wire.endTransmission(false);
-  Wire.requestFrom(SENSOR_ADDRESS, (uint8_t)1);
-  if (Wire.read() != 0x05) {
-    return false;
-  }
-  writeRegister(QMI8658C_CTRL1, 0x40);
-  writeRegister(QMI8658C_CTRL2, 0b00100101); // Accel: +/- 8g
-  writeRegister(QMI8658C_CTRL3, 0b01100101); // Gyro: +/- 2048dps
-  writeRegister(QMI8658C_CTRL7, 0b00000011);
-  //QMI8658_GYRO_RANGE_32DPS:
-  //_gyro_lsb_div = 1024;
-  // QMI8658_GYRO_RANGE_64DPS:
-  // _gyro_lsb_div = 512;
-  // QMI8658_GYRO_RANGE_128DPS:
-  // _gyro_lsb_div = 256;
-  // QMI8658_GYRO_RANGE_256DPS:
-  _gyro_lsb_div = 128;
-  // QMI8658_GYRO_RANGE_512DPS:
-  // _gyro_lsb_div = 64;
-  // QMI8658_GYRO_RANGE_1024DPS:
-  // _gyro_lsb_div = 32;
-  // QMI8658_GYRO_RANGE_2048DPS:
-  // _gyro_lsb_div = 16;
-  // QMI8658_GYRO_RANGE_4096DPS:
-  // _gyro_lsb_div = 8;
-  // QMI8658_ACCEL_RANGE_2G:
-  // _accel_lsb_div = 16384; // 2^14
-  // QMI8658_ACCEL_RANGE_4G:
-  // _accel_lsb_div = 8192;  // 2^13
-  // QMI8658_ACCEL_RANGE_8G:
-  _accel_lsb_div = 4096;  // 2^12
-  // QMI8658_ACCEL_RANGE_16G:
-  // _accel_lsb_div = 2048;  // 2^11
-  return true;
-}
 
-// Callback function for send status
+SensorData localData;
+
 void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  char macStr[18];
-  Serial.print("Packet to: ");
-  snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-           mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
-  Serial.print(macStr);
-  Serial.print(" send status: ");
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Delivery Success" : "Delivery Fail");
+  if (status != ESP_NOW_SEND_SUCCESS) {
+    Serial.println("Packet delivery failed");
+  }
 }
 
-// Function to register the slave as a peer
 void RegisterPeer() {
     esp_now_peer_info_t peerInfo;
     memset(&peerInfo, 0, sizeof(peerInfo));
@@ -120,20 +67,45 @@ void InitEspNow() {
         Serial.println("Error initializing ESP-NOW");
         return;
     }
-    // esp_now_register_recv_cb(OnMessageReceived);
     esp_now_register_send_cb(OnDataSent);
     RegisterPeer();
 }
+
+void selectMuxChannel(uint8_t bus) {
+  if (bus > 7) return;
+  Wire.beginTransmission(MUX_ADDRESS);
+  Wire.write(1 << bus);
+  Wire.endTransmission();
+}
+
+void writeRegister(uint8_t reg, uint8_t data) {
+  Wire.beginTransmission(SENSOR_ADDRESS);
+  Wire.write(reg);
+  Wire.write(data);
+  Wire.endTransmission();
+}
+
+bool initQMI8658C() {
+  Wire.beginTransmission(SENSOR_ADDRESS);
+  Wire.write(QMI8658C_WHO_AM_I);
+  Wire.endTransmission(false);
+  Wire.requestFrom(SENSOR_ADDRESS, (uint8_t)1);
+  if (Wire.read() != 0x05) {
+    return false;
+  }
+  writeRegister(QMI8658C_CTRL1, 0x40);
+  writeRegister(QMI8658C_CTRL2, 0b00100101); // Accel: +/- 8g
+  writeRegister(QMI8658C_CTRL3, 0b01100101); // Gyro: +/- 2048dps
+  writeRegister(QMI8658C_CTRL7, 0b00000011);
+  return true;
+}
+
 void setup() {
   Serial.begin(115200);
   while (!Serial);
-  WiFi.mode(WIFI_AP_STA);
-  Serial.println("\nBare-metal QMI8658C + TCA9548A Test - Table View");
-  Wire.begin(15,14);
-  if (esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
-      Serial.println("Error setting WiFi channel");
-      return;
-  }
+  Serial.println("\n[Slave] QMI8658C + TCA9548A Initialization");
+  Wire.begin(15, 14);
+
   for (int i = 0; i < NUM_SENSORS; i++) {
     selectMuxChannel(i);
     Serial.print("Initializing sensor on MUX channel ");
@@ -145,13 +117,34 @@ void setup() {
     }
     delay(100);
   }
-  Serial.println("\nInitialization complete. Starting readings...");
-  InitEspNow();
 
+  Serial.print("[Slave] Initializing 6th QMI8658 IMU...");
+  if (!imu.begin(15, 14)) {
+      Serial.println("❌ FAILED! Check connection.");
+      while(1) delay(1000);
+  }
+  Serial.println("✅ OK.");
+  imu.setAccelRange(QMI8658_ACCEL_RANGE_2G);
+  imu.setAccelODR(QMI8658_ACCEL_ODR_1000HZ);
+  imu.setGyroRange(QMI8658_GYRO_RANGE_256DPS);
+  imu.setGyroODR(QMI8658_GYRO_ODR_1000HZ);
+  imu.setAccelUnit_mps2(true);
+  imu.setGyroUnit_rads(true);
+  imu.enableSensors(QMI8658_ENABLE_ACCEL | QMI8658_ENABLE_GYRO);
+
+  Serial.println("\nInitialization complete. Starting data transmission...");
+  
+  WiFi.mode(WIFI_AP_STA);
+  if (esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+      Serial.println("Error setting WiFi channel");
+      return;
+  }
+  InitEspNow();
 }
 
 void loop() {
-  // --- เฟสที่ 1: อ่านและเก็บข้อมูลจากทุกเซ็นเซอร์ ---
+  bool all_sensors_ok = true;
+
   for (int i = 0; i < NUM_SENSORS; i++) {
     selectMuxChannel(i);
 
@@ -173,106 +166,45 @@ void loop() {
       int16_t rawGyroY = (dataBuffer[9] << 8) | dataBuffer[8];
       int16_t rawGyroZ = (dataBuffer[11] << 8) | dataBuffer[10];
       
-      if(i == 0){
-        myData.ax1 = (float)rawAccX / _accel_lsb_div;
-        myData.ay1 = (float)rawAccY / _accel_lsb_div;
-        myData.az1 = (float)rawAccZ / _accel_lsb_div;
-        myData.gx1 = (float)rawGyroX / _gyro_lsb_div;
-        myData.gy1 = (float)rawGyroY / _gyro_lsb_div;
-        myData.gz1 = (float)rawGyroZ / _gyro_lsb_div;
-      }else if(i == 1){
-        myData.ax2 = (float)rawAccX / _accel_lsb_div;
-        myData.ay2 = (float)rawAccY / _accel_lsb_div;
-        myData.az2 = (float)rawAccZ / _accel_lsb_div;
-        myData.gx2 = (float)rawGyroX / _gyro_lsb_div;
-        myData.gy2 = (float)rawGyroY / _gyro_lsb_div;
-        myData.gz2 = (float)rawGyroZ / _gyro_lsb_div;
-      }else if(i == 2){
-        myData.ax3 = (float)rawAccX / _accel_lsb_div;
-        myData.ay3 = (float)rawAccY / _accel_lsb_div;
-        myData.az3 = (float)rawAccZ / _accel_lsb_div;
-        myData.gx3 = (float)rawGyroX / _gyro_lsb_div;
-        myData.gy3 = (float)rawGyroY / _gyro_lsb_div;
-        myData.gz3 = (float)rawGyroZ / _gyro_lsb_div;
-      }else if(i == 3){
-        myData.ax4 = (float)rawAccX / _accel_lsb_div;
-        myData.ay4 = (float)rawAccY / _accel_lsb_div;
-        myData.az4 = (float)rawAccZ / _accel_lsb_div;
-        myData.gx4 = (float)rawGyroX / _gyro_lsb_div;
-        myData.gy4 = (float)rawGyroY / _gyro_lsb_div;
-        myData.gz4 = (float)rawGyroZ / _gyro_lsb_div;
-      }else if(i == 4){
-        myData.ax5 = (float)rawAccX / _accel_lsb_div;
-        myData.ay5 = (float)rawAccY / _accel_lsb_div;
-        myData.az5 = (float)rawAccZ / _accel_lsb_div;
-        myData.gx5 = (float)rawGyroX / _gyro_lsb_div;
-        myData.gy5 = (float)rawGyroY / _gyro_lsb_div;
-        myData.gz5 = (float)rawGyroZ / _gyro_lsb_div;
-      }
-      
+      float ax = (float)(rawAccX * ONE_G) / 4096.0f;
+      float ay = (float)(rawAccY * ONE_G) / 4096.0f;
+      float az = (float)(rawAccZ * ONE_G) / 4096.0f;
+      float gx = (float)(rawGyroX * 0.01745f) / 16.0f;
+      float gy = (float)(rawGyroY * 0.01745f) / 16.0f;
+      float gz = (float)(rawGyroZ * 0.01745f) / 16.0f;
 
-      myData.isValid = true;
+      switch(i) {
+        case 0: localData.ax1 = ax; localData.ay1 = ay; localData.az1 = az; localData.gx1 = gx; localData.gy1 = gy; localData.gz1 = gz; break;
+        case 1: localData.ax2 = ax; localData.ay2 = ay; localData.az2 = az; localData.gx2 = gx; localData.gy2 = gy; localData.gz2 = gz; break;
+        case 2: localData.ax3 = ax; localData.ay3 = ay; localData.az3 = az; localData.gx3 = gx; localData.gy3 = gy; localData.gz3 = gz; break;
+        case 3: localData.ax4 = ax; localData.ay4 = ay; localData.az4 = az; localData.gx4 = gx; localData.gy4 = gy; localData.gz4 = gz; break;
+        case 4: localData.ax5 = ax; localData.ay5 = ay; localData.az5 = az; localData.gx5 = gx; localData.gy5 = gy; localData.gz5 = gz; break;
+      }
     } else {
-      // หากอ่านไม่สำเร็จ ให้ทำเครื่องหมายว่าข้อมูลไม่ถูกต้อง
-      myData.isValid = false;
+      all_sensors_ok = false;
     }
   }
-  // myData.x = random(0, 20);
-  // myData.y = random(0, 20);
 
-  // Serial.print("Sending x: ");
-  // Serial.print(myData.x);
-  // Serial.print(", y: ");
-  // Serial.println(myData.y);
-  // --- เฟสที่ 2: แสดงผลข้อมูลทั้งหมดในตารางเดียว ---
-  Serial.println("\n================================ SENSOR DATA READOUT ================================");
-  Serial.println("| CH | Accel X | Accel Y | Accel Z |  Gyro X |  Gyro Y |  Gyro Z |");
-  Serial.println("|----|---------|---------|---------|---------|---------|---------|");
-  for (int i = 0; i < NUM_SENSORS; i++) {
-    if (myData.isValid) {
-      if(i == 0){
-        Serial.printf("| %2d | %f | %f | %f | %f | %f | %f |\n",
-                    i,
-                    myData.ax1, myData.ay1, myData.az1,
-                    myData.gx1, myData.gy1, myData.gz1);
-      }else if(i == 1){
-        Serial.printf("| %2d | %f | %f | %f | %f | %f | %f |\n",
-                    i,
-                    myData.ax2, myData.ay2, myData.az2,
-                    myData.gx2, myData.gy2, myData.gz2);
-      }else if(i == 2){
-       Serial.printf("| %2d | %f | %f | %f | %f | %f | %f |\n",
-                    i,
-                    myData.ax3, myData.ay3, myData.az3,
-                    myData.gx3, myData.gy3, myData.gz3);
-      }else if(i == 3){
-       Serial.printf("| %2d | %f | %f | %f | %f | %f | %f |\n",
-                    i,
-                    myData.ax4, myData.ay4, myData.az4,
-                    myData.gx4, myData.gy4, myData.gz4);
-      }else if(i == 4){
-       Serial.printf("| %2d | %f | %f | %f | %f | %f | %f |\n",
-                    i,
-                    myData.ax5, myData.ay5, myData.az5,
-                    myData.gx5, myData.gy5, myData.gz5);
-      }
-      // ใช้ printf เพื่อจัดรูปแบบทศนิยมและคอลัมน์ให้สวยงาม
-      
-    } else {
-      Serial.printf("| %2d | --- FAILED TO READ DATA ---                                         |\n", i);
-    }
-  }
-  esp_err_t result = esp_now_send(receiver_mac, (uint8_t *) &myData, sizeof(metaData));
-  Serial.printf("Size %d\n",sizeof(metaData));
-  if (result == ESP_OK) {
-    Serial.println("Sent with success");
-  }
-  else {
-    Serial.println("Error sending the data");
+  QMI8658_Data d;
+  if (imu.readSensorData(d)) {
+      localData.ax6 = d.accelX; localData.ay6 = d.accelY; localData.az6 = d.accelZ;
+      localData.gx6 = d.gyroX; localData.gy6 = d.gyroY; localData.gz6 = d.gyroZ;
+  } else {
+      all_sensors_ok = false;
   }
   
-  // Serial.println("---");
-  Serial.println("=====================================================================================");
+  filtered_ax = alpha * localData.ax6 + (1.0f - alpha) * filtered_ax;
+  filtered_ay = alpha * localData.ay6 + (1.0f - alpha) * filtered_ay;
+  filtered_az = alpha * localData.az6 + (1.0f - alpha) * filtered_az;
+
+  localData.angle_x = atan2f(filtered_ay, sqrtf(filtered_ax * filtered_ax + filtered_az * filtered_az)) * RAD_TO_DEG;
+  localData.angle_y = atan2f(filtered_ax, sqrtf(filtered_ay * filtered_ay + filtered_az * filtered_az)) * RAD_TO_DEG;
+  localData.angle_z = atan2f(sqrtf(filtered_ax * filtered_ax + filtered_ay * filtered_ay), filtered_az) * RAD_TO_DEG;
+
+  localData.isValid = all_sensors_ok;
+  localData.slav_online = true;
+  
+  esp_now_send(receiver_mac, (uint8_t *) &localData, sizeof(localData));
+  
   delay(100);
-  // delay(2000);  // Increased delay for easier reading
 }
