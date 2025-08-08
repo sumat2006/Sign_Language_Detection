@@ -1,18 +1,15 @@
 codeFlexHardWare/Immaltol_joe_main_hand/lib/*
 codeFlexHardWare/warboy_sub_hand/lib/*
-collect_data/collected_data
-collect_data/out_data
-collect_data/20250624_091650_กองภพ24062025_sensor.csv
-collect_data/test_zone.ipynb
 model/signlang_template.ipynb
 meta_data
 .venv
 model/*
 code
 # codeGyroHardWare
-collect_data
+collect_data/*
+!collect_data/read_serial_data_V2.py
+!collect_data/read_serial_data.py
 !model/src
-src-20250803T105749Z-1-001.zip
+Sign_Language_Detection/src-20250803T105749Z-1-001.zip
 codeGyroHardWare/gyroMain/lib/*
 codeGyroHardWare/gyroSlave/lib/*
-src-20250803T123616Z-1-001.zip

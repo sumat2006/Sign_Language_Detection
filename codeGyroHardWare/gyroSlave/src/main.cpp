@@ -2,7 +2,7 @@
 #include <esp_wifi.h>
 #include <WiFi.h>
 #include <Wire.h>
-#include <QMI8658.h>
+// #include <QMI8658.h>
 #include <Arduino.h>
 
 #define WIFI_CHANNEL 1
@@ -16,7 +16,7 @@ const uint8_t MUX_ADDRESS = 0x70;
 const uint8_t SENSOR_ADDRESS = 0x6B;
 
 // --- QMI8658C Register Addresses ---
-QMI8658          imu; // For 6th sensor
+// QMI8658          imu; // For 6th sensor
 const uint8_t QMI8658C_WHO_AM_I = 0x00;
 const uint8_t QMI8658C_CTRL1 = 0x02;
 const uint8_t QMI8658C_CTRL2 = 0x03;
@@ -37,8 +37,8 @@ struct SensorData {
   float ax3, ay3, az3, gx3, gy3, gz3;
   float ax4, ay4, az4, gx4, gy4, gz4;
   float ax5, ay5, az5, gx5, gy5, gz5;
-  float ax6, ay6, az6, gx6, gy6, gz6;
-  float angle_x, angle_y, angle_z;
+  // float ax6, ay6, az6, gx6, gy6, gz6;
+  // float angle_x, angle_y, angle_z;
   bool isValid = false;
   volatile bool slav_online = false;
 };
@@ -101,7 +101,7 @@ bool initQMI8658C() {
 }
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(1843200);
   while (!Serial);
   Serial.println("\n[Slave] QMI8658C + TCA9548A Initialization");
   Wire.begin(15, 14);
@@ -118,21 +118,21 @@ void setup() {
     delay(100);
   }
 
-  Serial.print("[Slave] Initializing 6th QMI8658 IMU...");
-  if (!imu.begin(15, 14)) {
-      Serial.println("❌ FAILED! Check connection.");
-      while(1) delay(1000);
-  }
-  Serial.println("✅ OK.");
-  imu.setAccelRange(QMI8658_ACCEL_RANGE_2G);
-  imu.setAccelODR(QMI8658_ACCEL_ODR_1000HZ);
-  imu.setGyroRange(QMI8658_GYRO_RANGE_256DPS);
-  imu.setGyroODR(QMI8658_GYRO_ODR_1000HZ);
-  imu.setAccelUnit_mps2(true);
-  imu.setGyroUnit_rads(true);
-  imu.enableSensors(QMI8658_ENABLE_ACCEL | QMI8658_ENABLE_GYRO);
+  // Serial.print("[Slave] Initializing 6th QMI8658 IMU...");
+  // if (!imu.begin(15, 14)) {
+  //     Serial.println("❌ FAILED! Check connection.");
+  //     while(1) delay(1000);
+  // }
+  // Serial.println("✅ OK.");
+  // imu.setAccelRange(QMI8658_ACCEL_RANGE_2G);
+  // imu.setAccelODR(QMI8658_ACCEL_ODR_1000HZ);
+  // imu.setGyroRange(QMI8658_GYRO_RANGE_256DPS);
+  // imu.setGyroODR(QMI8658_GYRO_ODR_1000HZ);
+  // imu.setAccelUnit_mps2(true);
+  // imu.setGyroUnit_rads(true);
+  // imu.enableSensors(QMI8658_ENABLE_ACCEL | QMI8658_ENABLE_GYRO);
 
-  Serial.println("\nInitialization complete. Starting data transmission...");
+  // Serial.println("\nInitialization complete. Starting data transmission...");
   
   WiFi.mode(WIFI_AP_STA);
   if (esp_wifi_set_channel(WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
@@ -185,26 +185,26 @@ void loop() {
     }
   }
 
-  QMI8658_Data d;
-  if (imu.readSensorData(d)) {
-      localData.ax6 = d.accelX; localData.ay6 = d.accelY; localData.az6 = d.accelZ;
-      localData.gx6 = d.gyroX; localData.gy6 = d.gyroY; localData.gz6 = d.gyroZ;
-  } else {
-      all_sensors_ok = false;
-  }
+  // // QMI8658_Data d;
+  // if (imu.readSensorData(d)) {
+  //     localData.ax6 = d.accelX; localData.ay6 = d.accelY; localData.az6 = d.accelZ;
+  //     localData.gx6 = d.gyroX; localData.gy6 = d.gyroY; localData.gz6 = d.gyroZ;
+  // } else {
+  //     all_sensors_ok = false;
+  // }
   
-  filtered_ax = alpha * localData.ax6 + (1.0f - alpha) * filtered_ax;
-  filtered_ay = alpha * localData.ay6 + (1.0f - alpha) * filtered_ay;
-  filtered_az = alpha * localData.az6 + (1.0f - alpha) * filtered_az;
+  // filtered_ax = alpha * localData.ax6 + (1.0f - alpha) * filtered_ax;
+  // filtered_ay = alpha * localData.ay6 + (1.0f - alpha) * filtered_ay;
+  // filtered_az = alpha * localData.az6 + (1.0f - alpha) * filtered_az;
 
-  localData.angle_x = atan2f(filtered_ay, sqrtf(filtered_ax * filtered_ax + filtered_az * filtered_az)) * RAD_TO_DEG;
-  localData.angle_y = atan2f(filtered_ax, sqrtf(filtered_ay * filtered_ay + filtered_az * filtered_az)) * RAD_TO_DEG;
-  localData.angle_z = atan2f(sqrtf(filtered_ax * filtered_ax + filtered_ay * filtered_ay), filtered_az) * RAD_TO_DEG;
+  // localData.angle_x = atan2f(filtered_ay, sqrtf(filtered_ax * filtered_ax + filtered_az * filtered_az)) * RAD_TO_DEG;
+  // localData.angle_y = atan2f(filtered_ax, sqrtf(filtered_ay * filtered_ay + filtered_az * filtered_az)) * RAD_TO_DEG;
+  // localData.angle_z = atan2f(sqrtf(filtered_ax * filtered_ax + filtered_ay * filtered_ay), filtered_az) * RAD_TO_DEG;
 
   localData.isValid = all_sensors_ok;
   localData.slav_online = true;
   
   esp_now_send(receiver_mac, (uint8_t *) &localData, sizeof(localData));
   
-  delay(100);
+  delay(50); 
 }

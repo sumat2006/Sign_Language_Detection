@@ -2,7 +2,7 @@
 #include <esp_wifi.h>
 #include <WiFi.h>
 #include <Wire.h>
-#include <QMI8658.h>
+// #include <QMI8658.h>
 #include <Arduino.h>
 
 #define WIFI_CHANNEL 1
@@ -16,7 +16,7 @@ const uint8_t MUX_ADDRESS = 0x70;
 const uint8_t SENSOR_ADDRESS = 0x6B;
 
 // --- QMI8658C Register Addresses ---
-QMI8658          imu;
+// QMI8658          imu;
 const uint8_t QMI8658C_WHO_AM_I = 0x00;
 const uint8_t QMI8658C_CTRL1 = 0x02;
 const uint8_t QMI8658C_CTRL2 = 0x03;
@@ -29,7 +29,7 @@ const int NUM_SENSORS = 5;
 
 static const float alpha = 0.5f;
 float filtered_ax = 0.0f, filtered_ay = 0.0f, filtered_az = 0.0f;
-
+// unsigned long start_timestamp = 0;
 
 struct SensorData {
   float ax1, ay1, az1, gx1, gy1, gz1;
@@ -37,8 +37,8 @@ struct SensorData {
   float ax3, ay3, az3, gx3, gy3, gz3;
   float ax4, ay4, az4, gx4, gy4, gz4;
   float ax5, ay5, az5, gx5, gy5, gz5;
-  float ax6, ay6, az6, gx6, gy6, gz6;
-  float angle_x, angle_y, angle_z;
+  // float ax6, ay6, az6, gx6, gy6, gz6;
+  // float angle_x, angle_y, angle_z;
   bool isValid = false;
   volatile bool slav_online = false;
 };
@@ -118,7 +118,7 @@ bool initQMI8658C() {
 }
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(1843200);
   while (!Serial);
   Serial.println("\n[Main] QMI8658C + TCA9548A Initialization");
   Wire.begin(15, 14);
@@ -141,16 +141,16 @@ void setup() {
   }
   
 
-  Serial.print("[Main] Initializing 6th QMI8658 IMU...");
-  if (!imu.begin(15, 14)) { Serial.println("❌ FAILED!"); while (1) delay(1000); }
-  Serial.println("✅ OK.");
-  imu.setAccelRange(QMI8658_ACCEL_RANGE_2G);
-  imu.setAccelODR(QMI8658_ACCEL_ODR_1000HZ);
-  imu.setGyroRange(QMI8658_GYRO_RANGE_256DPS);
-  imu.setGyroODR(QMI8658_GYRO_ODR_1000HZ);
-  imu.setAccelUnit_mps2(true);
-  imu.setGyroUnit_rads(true);
-  imu.enableSensors(QMI8658_ENABLE_ACCEL | QMI8658_ENABLE_GYRO);
+  // Serial.print("[Main] Initializing 6th QMI8658 IMU...");
+  // if (!imu.begin(15, 14)) { Serial.println("❌ FAILED!"); while (1) delay(1000); }
+  // Serial.println("✅ OK.");
+  // imu.setAccelRange(QMI8658_ACCEL_RANGE_2G);
+  // imu.setAccelODR(QMI8658_ACCEL_ODR_1000HZ);
+  // imu.setGyroRange(QMI8658_GYRO_RANGE_256DPS);
+  // imu.setGyroODR(QMI8658_GYRO_ODR_1000HZ);
+  // imu.setAccelUnit_mps2(true);
+  // imu.setGyroUnit_rads(true);
+  // imu.enableSensors(QMI8658_ENABLE_ACCEL | QMI8658_ENABLE_GYRO);
 
   Serial.println("\nInitialization complete. Waiting for slave...");
   WiFi.mode(WIFI_AP_STA);
@@ -214,28 +214,29 @@ void loop() {
     }
     
 
-    QMI8658_Data d;
-    if (imu.readSensorData(d)) {
-        localData.ax6 = d.accelX; localData.ay6 = d.accelY; localData.az6 = d.accelZ;
-        localData.gx6 = d.gyroX; localData.gy6 = d.gyroY; localData.gz6 = d.gyroZ;
-    } else {
-        all_local_sensors_ok = false;
-    }
+    // QMI8658_Data d;
+    // if (imu.readSensorData(d)) {
+    //     localData.ax6 = d.accelX; localData.ay6 = d.accelY; localData.az6 = d.accelZ;
+    //     localData.gx6 = d.gyroX; localData.gy6 = d.gyroY; localData.gz6 = d.gyroZ;
+    // } else {
+    //     all_local_sensors_ok = false;
+    // }
     localData.isValid = all_local_sensors_ok;
     
 
-    filtered_ax = alpha * localData.ax6 + (1.0f - alpha) * filtered_ax;
-    filtered_ay = alpha * localData.ay6 + (1.0f - alpha) * filtered_ay;
-    filtered_az = alpha * localData.az6 + (1.0f - alpha) * filtered_az;
+    // filtered_ax = alpha * localData.ax6 + (1.0f - alpha) * filtered_ax;
+    // filtered_ay = alpha * localData.ay6 + (1.0f - alpha) * filtered_ay;
+    // filtered_az = alpha * localData.az6 + (1.0f - alpha) * filtered_az;
 
-    localData.angle_x = atan2f(filtered_ay, sqrtf(filtered_ax * filtered_ax + filtered_az * filtered_az)) * RAD_TO_DEG;
-    localData.angle_y = atan2f(filtered_ax, sqrtf(filtered_ay * filtered_ay + filtered_az * filtered_az)) * RAD_TO_DEG;
-    localData.angle_z = atan2f(sqrtf(filtered_ax * filtered_ax + filtered_ay * filtered_ay), filtered_az) * RAD_TO_DEG;
+    // localData.angle_x = atan2f(filtered_ay, sqrtf(filtered_ax * filtered_ax + filtered_az * filtered_az)) * RAD_TO_DEG;
+    // localData.angle_y = atan2f(filtered_ax, sqrtf(filtered_ay * filtered_ay + filtered_az * filtered_az)) * RAD_TO_DEG;
+    // localData.angle_z = atan2f(sqrtf(filtered_ax * filtered_ax + filtered_ay * filtered_ay), filtered_az) * RAD_TO_DEG;
 
 
     static char outBuf[2048];
     snprintf(outBuf, sizeof(outBuf),
-        "[main_valid]%d,[slav_valid]%d"
+        "[timestamp]%lu"
+        // "[main_valid]%d,[slav_valid]%d"
         ",[ax1]%.4f,[ay1]%.4f,[az1]%.4f,[gx1]%.4f,[gy1]%.4f,[gz1]%.4f"
         ",[ax2]%.4f,[ay2]%.4f,[az2]%.4f,[gx2]%.4f,[gy2]%.4f,[gz2]%.4f"
         ",[ax3]%.4f,[ay3]%.4f,[az3]%.4f,[gx3]%.4f,[gy3]%.4f,[gz3]%.4f"
@@ -246,12 +247,13 @@ void loop() {
         ",[ax3_slav]%.4f,[ay3_slav]%.4f,[az3_slav]%.4f,[gx3_slav]%.4f,[gy3_slav]%.4f,[gz3_slav]%.4f"
         ",[ax4_slav]%.4f,[ay4_slav]%.4f,[az4_slav]%.4f,[gx4_slav]%.4f,[gy4_slav]%.4f,[gz4_slav]%.4f"
         ",[ax5_slav]%.4f,[ay5_slav]%.4f,[az5_slav]%.4f,[gx5_slav]%.4f,[gy5_slav]%.4f,[gz5_slav]%.4f"
-        ",[ax6]%.4f,[ay6]%.4f,[az6]%.4f,[gx6]%.4f,[gy6]%.4f,[gz6]%.4f"
-        ",[angle_x]%.4f,[angle_y]%.4f,[angle_z]%.4f"
-        ",[ax6_slav]%.4f,[ay6_slav]%.4f,[az6_slav]%.4f,[gx6_slav]%.4f,[gy6_slav]%.4f,[gz6_slav]%.4f"
-        ",[angle_x_slav]%.4f,[angle_y_slav]%.4f,[angle_z_slav]%.4f",
-
-        localData.isValid, receivedData.isValid,
+        // ",[ax6]%.4f,[ay6]%.4f,[az6]%.4f,[gx6]%.4f,[gy6]%.4f,[gz6]%.4f"
+        // ",[angle_x]%.4f,[angle_y]%.4f,[angle_z]%.4f"
+        // ",[ax6_slav]%.4f,[ay6_slav]%.4f,[az6_slav]%.4f,[gx6_slav]%.4f,[gy6_slav]%.4f,[gz6_slav]%.4f"
+        // ",[angle_x_slav]%.4f,[angle_y_slav]%.4f,[angle_z_slav]%.4f"
+        ,
+        millis(),
+        // localData.isValid, receivedData.isValid,
         localData.ax1, localData.ay1, localData.az1, localData.gx1, localData.gy1, localData.gz1,
         localData.ax2, localData.ay2, localData.az2, localData.gx2, localData.gy2, localData.gz2,
         localData.ax3, localData.ay3, localData.az3, localData.gx3, localData.gy3, localData.gz3,
@@ -261,16 +263,16 @@ void loop() {
         receivedData.ax2, receivedData.ay2, receivedData.az2, receivedData.gx2, receivedData.gy2, receivedData.gz2,
         receivedData.ax3, receivedData.ay3, receivedData.az3, receivedData.gx3, receivedData.gy3, receivedData.gz3,
         receivedData.ax4, receivedData.ay4, receivedData.az4, receivedData.gx4, receivedData.gy4, receivedData.gz4,
-        receivedData.ax5, receivedData.ay5, receivedData.az5, receivedData.gx5, receivedData.gy5, receivedData.gz5,
-        localData.ax6, localData.ay6, localData.az6, localData.gx6, localData.gy6, localData.gz6,
-        localData.angle_x, localData.angle_y, localData.angle_z,
-        receivedData.ax6, receivedData.ay6, receivedData.az6, receivedData.gx6, receivedData.gy6, receivedData.gz6,
-        receivedData.angle_x, receivedData.angle_y, receivedData.angle_z
+        receivedData.ax5, receivedData.ay5, receivedData.az5, receivedData.gx5, receivedData.gy5, receivedData.gz5
+        // localData.ax6, localData.ay6, localData.az6, localData.gx6, localData.gy6, localData.gz6,
+        // localData.angle_x, localData.angle_y, localData.angle_z,
+        // receivedData.ax6, receivedData.ay6, receivedData.az6, receivedData.gx6, receivedData.gy6, receivedData.gz6,
+        // receivedData.angle_x, receivedData.angle_y, receivedData.angle_z
       );
       Serial.printf("[Sensor] %s\n", outBuf);
     } else {
       Serial.print(".");
       delay(500);
     }
-  delay(100); 
+  delay(50); 
 }
