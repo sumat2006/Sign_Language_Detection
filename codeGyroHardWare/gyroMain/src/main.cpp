@@ -2,8 +2,8 @@
 #include <esp_wifi.h>
 #include <WiFi.h>
 #include <Wire.h>
-// #include <QMI8658.h>
 #include <Arduino.h>
+#include "esp_task_wdt.h" 
 
 #define WIFI_CHANNEL 1
 #define SLAVE_TIMEOUT_MS 1000
@@ -16,7 +16,6 @@ const uint8_t MUX_ADDRESS = 0x70;
 const uint8_t SENSOR_ADDRESS = 0x6B;
 
 // --- QMI8658C Register Addresses ---
-// QMI8658          imu;
 const uint8_t QMI8658C_WHO_AM_I = 0x00;
 const uint8_t QMI8658C_CTRL1 = 0x02;
 const uint8_t QMI8658C_CTRL2 = 0x03;
@@ -25,7 +24,6 @@ const uint8_t QMI8658C_CTRL7 = 0x08;
 const uint8_t QMI8658C_OUTPUT_REG_START = 0x35;
 unsigned long last_slave_message_time = 0;
 const int NUM_SENSORS = 5;
-
 
 static const float alpha = 0.5f;
 float filtered_ax = 0.0f, filtered_ay = 0.0f, filtered_az = 0.0f;
@@ -43,7 +41,6 @@ struct SensorData {
 SensorData localData;
 SensorData receivedData;
 
-
 void RegisterPeer() {
     esp_now_peer_info_t peerInfo;
     memset(&peerInfo, 0, sizeof(peerInfo));
@@ -54,7 +51,6 @@ void RegisterPeer() {
         Serial.println("Failed to add peer");
     }
 }
-
 
 void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
   if (len == sizeof(receivedData)) {
@@ -89,7 +85,10 @@ void selectMuxChannel(uint8_t bus) {
   if (bus > 7) return;
   Wire.beginTransmission(MUX_ADDRESS);
   Wire.write(1 << bus);
-  Wire.endTransmission();
+  uint8_t result = Wire.endTransmission();
+  if (result != 0) {
+    Serial.printf("[Error] MUX channel %d selection failed: %d\n", bus, result);
+  }
 }
 
 void writeRegister(uint8_t reg, uint8_t data) {
@@ -102,9 +101,11 @@ void writeRegister(uint8_t reg, uint8_t data) {
 bool initQMI8658C() {
   Wire.beginTransmission(SENSOR_ADDRESS);
   Wire.write(QMI8658C_WHO_AM_I);
-  Wire.endTransmission(false);
+  uint8_t result = Wire.endTransmission(false);
+  if (result != 0) return false;
+  
   Wire.requestFrom(SENSOR_ADDRESS, (uint8_t)1);
-  if (Wire.read() != 0x05) {
+  if (!Wire.available() || Wire.read() != 0x05) {
     return false;
   }
   writeRegister(QMI8658C_CTRL1, 0x40);
@@ -118,14 +119,22 @@ void setup() {
   Serial.begin(1843200);
   while (!Serial);
   Serial.println("\n[Main] QMI8658C + TCA9548A Initialization");
+  
+  // Initialize I2C with timeout settings
   Wire.begin(15, 14);
+  Wire.setTimeout(100); // 100ms timeout for I2C operations
+  Wire.setClock(100000); // Set I2C clock to 100kHz
 
+  // Configure watchdog timer - CRITICAL FOR PREVENTING CRASHES
+  esp_task_wdt_init(10, true);
+  esp_task_wdt_add(NULL);
+  Serial.println("[Main] Watchdog configured (10s timeout)");
 
   memset(&localData, 0, sizeof(localData));
   memset(&receivedData, 0, sizeof(receivedData));
 
-
   for (int i = 0; i < NUM_SENSORS; i++) {
+    esp_task_wdt_reset();
     selectMuxChannel(i);
     Serial.print("Initializing sensor on MUX channel ");
     Serial.print(i);
@@ -147,6 +156,7 @@ void setup() {
 }
 
 void loop() {
+  esp_task_wdt_reset();
 
   if (localData.slav_online && (millis() - last_slave_message_time > SLAVE_TIMEOUT_MS)){
     localData.slav_online = false;
@@ -154,20 +164,31 @@ void loop() {
     Serial.println("\n[Main] Slave connection lost (timeout).");
   }
 
-
   if (localData.slav_online) {
     bool all_local_sensors_ok = true;
-
-   
+    
+    // Read sensors with timeout protection
     for (int i = 0; i < NUM_SENSORS; i++) {
+      // Feed watchdog before each sensor read - PREVENTS TIMEOUT
+      esp_task_wdt_reset();
+      
       selectMuxChannel(i);
       uint8_t dataBuffer[12];
+      
       Wire.beginTransmission(SENSOR_ADDRESS);
       Wire.write(QMI8658C_OUTPUT_REG_START);
-      Wire.endTransmission(false);
-      Wire.requestFrom(SENSOR_ADDRESS, (uint8_t)12);
+      uint8_t transmit_result = Wire.endTransmission(false);
       
-      if (Wire.available() == 12) {
+      // Check for I2C transmission errors
+      if (transmit_result != 0) {
+        Serial.printf("[Error] Sensor %d I2C transmit failed: %d\n", i, transmit_result);
+        all_local_sensors_ok = false;
+        continue; // Skip this sensor and continue with next
+      }
+      
+      uint8_t bytes_received = Wire.requestFrom(SENSOR_ADDRESS, (uint8_t)12);
+      
+      if (bytes_received == 12 && Wire.available() == 12) {
         for (int k = 0; k < 12; k++) {
           dataBuffer[k] = Wire.read();
         }
@@ -187,17 +208,31 @@ void loop() {
         float gz = (float)(rawGyroZ * 0.01745f) / 16.0f;
 
         switch(i) {
-            case 0: localData.ax1 = ax; localData.ay1 = ay; localData.az1 = az; localData.gx1 = gx; localData.gy1 = gy; localData.gz1 = gz; break;
-            case 1: localData.ax2 = ax; localData.ay2 = ay; localData.az2 = az; localData.gx2 = gx; localData.gy2 = gy; localData.gz2 = gz; break;
-            case 2: localData.ax3 = ax; localData.ay3 = ay; localData.az3 = az; localData.gx3 = gx; localData.gy3 = gy; localData.gz3 = gz; break;
-            case 3: localData.ax4 = ax; localData.ay4 = ay; localData.az4 = az; localData.gx4 = gx; localData.gy4 = gy; localData.gz4 = gz; break;
-            case 4: localData.ax5 = ax; localData.ay5 = ay; localData.az5 = az; localData.gx5 = gx; localData.gy5 = gy; localData.gz5 = gz; break;
+            case 0: localData.ax1 = ax; localData.ay1 = ay; localData.az1 = az; 
+                   localData.gx1 = gx; localData.gy1 = gy; localData.gz1 = gz; break;
+            case 1: localData.ax2 = ax; localData.ay2 = ay; localData.az2 = az; 
+                   localData.gx2 = gx; localData.gy2 = gy; localData.gz2 = gz; break;
+            case 2: localData.ax3 = ax; localData.ay3 = ay; localData.az3 = az; 
+                   localData.gx3 = gx; localData.gy3 = gy; localData.gz3 = gz; break;
+            case 3: localData.ax4 = ax; localData.ay4 = ay; localData.az4 = az; 
+                   localData.gx4 = gx; localData.gy4 = gy; localData.gz4 = gz; break;
+            case 4: localData.ax5 = ax; localData.ay5 = ay; localData.az5 = az; 
+                   localData.gx5 = gx; localData.gy5 = gy; localData.gz5 = gz; break;
         }
       } else {
+        Serial.printf("[Error] Sensor %d data read failed. Expected 12 bytes, got %d\n", i, bytes_received);
         all_local_sensors_ok = false;
       }
+      
+      // Small delay between sensor reads to prevent I2C bus overload
+      delay(5);
     }
+    
     localData.isValid = all_local_sensors_ok;
+    
+    // Feed watchdog before potentially long snprintf operation
+    esp_task_wdt_reset();
+    
     static char outBuf[512];
     snprintf(outBuf, sizeof(outBuf),
         "%lu"
@@ -224,11 +259,13 @@ void loop() {
         receivedData.ax4, receivedData.ay4, receivedData.az4, receivedData.gx4, receivedData.gy4, receivedData.gz4,
         receivedData.ax5, receivedData.ay5, receivedData.az5, receivedData.gx5, receivedData.gy5, receivedData.gz5
       );
-      Serial.printf("[Sensor] %s\n", outBuf);
-    } else {
-      Serial.print(".");
-      delay(500);
-    }
+    Serial.printf("[Sensor] %s\n", outBuf);
+  } else {
+    Serial.print(".");
+    delay(500);
+  }
+  
+  // Ensure minimum loop time but allow task switching
   delay(50); 
 }
   // "[timestamp]%lu"
