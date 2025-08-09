@@ -266,7 +266,7 @@ void loop() {
   }
   
   // Ensure minimum loop time but allow task switching
-  delay(50); 
+  delay(10); 
 }
   // "[timestamp]%lu"
   // ",[ax1]%.4f,[ay1]%.4f,[az1]%.4f,[gx1]%.4f,[gy1]%.4f,[gz1]%.4f"
