@@ -13,3 +13,7 @@ codeGyroHardWare/gyroMain/lib/*
 codeGyroHardWare/gyroSlave/lib/*
 collect_data/*
 !collect_data/app
+EDA.ipynb
+GyroDataEDA.ipynb
+modeling_gyro.ipynb
+tts
